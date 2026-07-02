@@ -92,7 +92,7 @@ async function fetchGeneral(): Promise<NewsItem[]> {
     .filter((item): item is NewsItem => item !== null)
 }
 
-/** Fetch state-tagged news for every region via Google News. */
+/** Fetch state-tagged news for every region via Google News (state name only). */
 async function fetchPerState(): Promise<NewsItem[]> {
   const perRegion = await mapLimit(VENEZUELA_REGIONS, CONCURRENCY, async (region) => {
     const xml = await fetchText(googleNewsUrl(`"${region.name}" Venezuela when:4d`))
@@ -103,6 +103,36 @@ async function fetchPerState(): Promise<NewsItem[]> {
       .filter((item): item is NewsItem => item !== null)
   })
   return perRegion.flat()
+}
+
+/** Notable cities/islands queried explicitly and tagged to their state, so
+ * places like Punto Fijo or Isla de Margarita get their own coverage. */
+const CITY_QUERIES: ReadonlyArray<{ query: string; regionId: string }> = [
+  { query: 'Punto Fijo', regionId: 'falcon' },
+  { query: 'Isla de Margarita', regionId: 'nueva-esparta' },
+  { query: 'Porlamar', regionId: 'nueva-esparta' },
+  { query: 'Maracaibo', regionId: 'zulia' },
+  { query: 'Barquisimeto', regionId: 'lara' },
+  { query: 'Ciudad Guayana', regionId: 'bolivar' },
+  { query: 'Puerto Ordaz', regionId: 'bolivar' },
+  { query: 'Maracay', regionId: 'aragua' },
+  { query: 'San Cristóbal Táchira', regionId: 'tachira' },
+  { query: 'Cumaná', regionId: 'sucre' },
+  { query: 'Maturín Monagas', regionId: 'monagas' },
+  { query: 'Los Teques', regionId: 'miranda' },
+]
+
+/** Fetch city-level news for the curated {@link CITY_QUERIES}. */
+async function fetchCities(): Promise<NewsItem[]> {
+  const perCity = await mapLimit(CITY_QUERIES, CONCURRENCY, async (city) => {
+    const xml = await fetchText(googleNewsUrl(`"${city.query}" Venezuela when:4d`))
+    if (xml === null) return []
+    return parseFeed(xml)
+      .slice(0, 4)
+      .map((raw, index) => toGoogleNewsItem(raw, city.regionId, index))
+      .filter((item): item is NewsItem => item !== null)
+  })
+  return perCity.flat()
 }
 
 /** Fetch outlet RSS feeds (they carry images Google News lacks). */
@@ -179,9 +209,10 @@ function titleKey(title: string): string {
 export async function aggregateNews(now: number = Date.now()): Promise<NewsItem[]> {
   if (cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
 
-  const [general, perState, outlets, reddit] = await Promise.all([
+  const [general, perState, cities, outlets, reddit] = await Promise.all([
     fetchGeneral(),
     fetchPerState(),
+    fetchCities(),
     fetchOutlets(),
     fetchReddit(),
   ])
@@ -200,10 +231,21 @@ export async function aggregateNews(now: number = Date.now()): Promise<NewsItem[
   }
   add(general)
   add(perState)
+  add(cities)
   add(outlets)
   add(reddit)
 
   const sorted = merged.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
   cache = { at: now, items: sorted }
   return sorted
+}
+
+/**
+ * Fast subset for first paint: just the broad national bucket (one request),
+ * so the UI shows recent news in ~1s while the full aggregation loads.
+ *
+ * @returns The general/national news list.
+ */
+export async function aggregateGeneral(): Promise<NewsItem[]> {
+  return fetchGeneral()
 }

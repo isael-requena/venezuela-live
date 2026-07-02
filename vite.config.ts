@@ -12,13 +12,15 @@ function devNewsApi(): PluginOption {
     name: 'dev-news-api',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/api/news', (_req, res) => {
+      server.middlewares.use('/api/news', (req, res) => {
         void (async () => {
           try {
             const mod = (await server.ssrLoadModule('/api/_lib/aggregate.ts')) as {
               aggregateNews: () => Promise<unknown[]>
+              aggregateGeneral: () => Promise<unknown[]>
             }
-            const items = await mod.aggregateNews()
+            const general = (req.url ?? '').includes('scope=general')
+            const items = general ? await mod.aggregateGeneral() : await mod.aggregateNews()
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
             res.end(JSON.stringify({ items, generatedAt: Date.now() }))
           } catch (error) {

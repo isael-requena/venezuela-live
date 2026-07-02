@@ -102,15 +102,22 @@ async function fetchNewsClient(signal?: AbortSignal): Promise<NewsItem[]> {
   return merged.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
 }
 
+/** Which slice of news to request from the API. */
+export type NewsScope = 'general' | 'full'
+
 /**
- * Fetch the latest news: the serverless API first, then the client fallback.
+ * Fetch news from the serverless API. For `full`, falls back to the client-side
+ * proxy aggregation when the API is unavailable (e.g. static hosting). The fast
+ * `general` phase has no fallback (it's just for a quick first paint).
  *
  * @param signal - Optional abort signal.
- * @returns A flat, date-sorted (newest first) list of articles.
+ * @param scope - `general` (quick) or `full` (everything).
+ * @returns A date-sorted (newest first) list of articles.
  */
-export async function fetchNews(signal?: AbortSignal): Promise<NewsItem[]> {
+export async function fetchNews(signal?: AbortSignal, scope: NewsScope = 'full'): Promise<NewsItem[]> {
+  const url = scope === 'general' ? '/api/news?scope=general' : '/api/news'
   try {
-    const response = await fetch('/api/news', signal !== undefined ? { signal } : {})
+    const response = await fetch(url, signal !== undefined ? { signal } : {})
     if (response.ok) {
       const parsed = apiResponseSchema.parse(await response.json())
       if (parsed.items.length > 0) return parsed.items
@@ -118,5 +125,5 @@ export async function fetchNews(signal?: AbortSignal): Promise<NewsItem[]> {
   } catch (error) {
     logError('api:news', error)
   }
-  return fetchNewsClient(signal)
+  return scope === 'general' ? [] : fetchNewsClient(signal)
 }

@@ -138,6 +138,17 @@ body {
   font-size: 13px;
   line-height: 1.45;
 }
+/* Leaflet forces a blue link color inside popups (higher specificity than
+ * Tailwind's text-white); our popup buttons are white, so override it. */
+.leaflet-popup-content a {
+  color: #fff;
+}
+
+/* Cheap offscreen skipping for long lists on low-end phones. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 88px;
+}
 
 /* ------------------------------------------------------------------ *
  * Pulsing earthquake / region markers (injected via Leaflet divIcon)

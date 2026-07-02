@@ -6,13 +6,21 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { aggregateNews } from './_lib/aggregate'
+import { aggregateGeneral, aggregateNews } from './_lib/aggregate'
 
-export default async function handler(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
-    const items = await aggregateNews()
+    const url = new URL(req.url ?? '/', 'http://localhost')
+    const general = url.searchParams.get('scope') === 'general'
+    const items = general ? await aggregateGeneral() : await aggregateNews()
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    // The quick "general" bucket is cached briefly; the full list a bit longer.
+    res.setHeader(
+      'Cache-Control',
+      general
+        ? 'public, s-maxage=120, stale-while-revalidate=300'
+        : 'public, s-maxage=300, stale-while-revalidate=600',
+    )
     res.end(JSON.stringify({ items, generatedAt: Date.now() }))
   } catch {
     res.statusCode = 502

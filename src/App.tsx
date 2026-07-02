@@ -56,6 +56,7 @@ function App(): ReactNode {
 
   const handleSelectNews = useCallback(
     (item: NewsItem) => {
+      setActiveQuake(null) // news and quake overlays are mutually exclusive
       setActiveNews(item)
       const region = item.regionId !== null ? REGIONS_BY_ID.get(item.regionId) : undefined
       if (region !== undefined) {
@@ -73,6 +74,8 @@ function App(): ReactNode {
   // Don't fly here: the popover's own autoPan brings the epicenter into view
   // below the floating header without fighting a concurrent flyTo animation.
   const handleSelectQuake = useCallback((quake: Earthquake) => {
+    setActiveNews(null) // close any open news card + toast
+    setToast(null)
     setActiveQuake(quake)
   }, [])
 

@@ -1,6 +1,6 @@
 /** Sidebar panel listing aggregated news, filterable by origin and region. */
 
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react'
 import { Panel } from '../common/Panel'
 import { StatusBadge } from '../common/StatusBadge'
 import { StateMessage } from '../common/StateMessage'
@@ -12,6 +12,9 @@ import { formatRelativeTime } from '../../utils/format'
 
 /** Origin filter tabs. */
 type OriginFilter = 'all' | 'oficial' | 'social'
+
+/** How many items to reveal per infinite-scroll page (keeps the DOM light). */
+const PAGE_SIZE = 15
 
 interface NewsPanelProps {
   readonly state: AsyncState<NewsItem[]>
@@ -48,7 +51,7 @@ const ORIGIN_TABS: ReadonlyArray<{ id: OriginFilter; label: string }> = [
   { id: 'social', label: 'Redes' },
 ]
 
-/** Single news article row with optional thumbnail. */
+/** Single news article row with a landscape thumbnail. */
 function NewsRow({
   item,
   onSelect,
@@ -62,7 +65,7 @@ function NewsRow({
   const showImage = item.imageUrl !== null && !imgFailed
 
   return (
-    <li>
+    <li className="cv-auto">
       <button
         type="button"
         onClick={() => onSelect(item)}
@@ -73,12 +76,13 @@ function NewsRow({
             src={item.imageUrl ?? ''}
             alt=""
             loading="lazy"
-            className="h-16 w-16 shrink-0 rounded-lg object-cover"
+            decoding="async"
+            className="h-16 w-24 shrink-0 rounded-lg object-cover"
             onError={() => setImgFailed(true)}
           />
         ) : (
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-white/5">
-            <PlatformIcon className={`h-6 w-6 ${PLATFORM_COLOR[item.platform]}`} />
+          <span className="flex h-16 w-24 shrink-0 items-center justify-center rounded-lg bg-white/5">
+            <PlatformIcon className={`h-7 w-7 ${PLATFORM_COLOR[item.platform]}`} />
           </span>
         )}
         <span className="min-w-0 flex-1">
@@ -105,6 +109,8 @@ function NewsRow({
 export function NewsPanel({ state, selectedRegionId, onSelectRegion, onSelectNews }: NewsPanelProps): ReactNode {
   const { data, isLoading, error, lastUpdated, refresh } = state
   const [origin, setOrigin] = useState<OriginFilter>('all')
+  const [visible, setVisible] = useState(PAGE_SIZE)
+  const sentinelRef = useRef<HTMLLIElement | null>(null)
 
   const news = useMemo(() => data ?? [], [data])
   const filtered = useMemo(
@@ -117,7 +123,28 @@ export function NewsPanel({ state, selectedRegionId, onSelectRegion, onSelectNew
     [news, origin, selectedRegionId],
   )
 
+  // Reset paging whenever the filter changes.
+  useEffect(() => {
+    setVisible(PAGE_SIZE)
+  }, [origin, selectedRegionId])
+
+  // Infinite scroll: reveal more as the sentinel nears the scroll viewport.
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (sentinel === null) return
+    const root = sentinel.closest('.scroll-thin')
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setVisible((current) => current + PAGE_SIZE)
+      },
+      { root, rootMargin: '600px 0px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [filtered.length, origin, selectedRegionId])
+
   const selectedName = selectedRegionId !== null ? REGION_NAMES.get(selectedRegionId) : null
+  const shown = filtered.slice(0, visible)
 
   return (
     <Panel
@@ -159,9 +186,14 @@ export function NewsPanel({ state, selectedRegionId, onSelectRegion, onSelectNew
         <StateMessage variant="empty" message="No hay noticias para este filtro." />
       ) : (
         <ul className="space-y-1">
-          {filtered.map((item) => (
+          {shown.map((item) => (
             <NewsRow key={item.id} item={item} onSelect={onSelectNews} />
           ))}
+          {visible < filtered.length && (
+            <li ref={sentinelRef} className="py-3 text-center text-xs text-slate-500">
+              Cargando más…
+            </li>
+          )}
         </ul>
       )}
     </Panel>
