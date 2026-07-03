@@ -3,7 +3,7 @@
  * best-effort region matcher. Keep aliases in sync with src/config/regions.ts.
  */
 
-import { escapeRegExp, normalize, type Region } from './util'
+import { escapeRegExp, normalize, type Region } from './util.js'
 
 export const REGIONS: readonly Region[] = [
   { id: 'distrito-capital', name: 'Distrito Capital', aliases: ['caracas', 'distrito capital', 'libertador', 'ccs', 'el avila', 'cota mil', 'sabana grande', 'antimano', 'la pastora', 'el junquito', 'junquito'] },

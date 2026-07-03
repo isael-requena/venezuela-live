@@ -1,13 +1,13 @@
 /**
- * Live aggregated news with progressive loading:
+ * Aggregated news with progressive loading:
  *  1. hydrate instantly from the localStorage cache (repeat visits),
  *  2. on a cold start, paint the quick "general" bucket first (~1s),
- *  3. then load the full state-tagged list and cache it,
- *  4. refresh the full list on the configured interval.
+ *  3. then load the full state-tagged list and cache it.
+ * There is no polling: refreshing is manual (the backend caps upstream fetches
+ * to once per 8 min, so a tap is cheap).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { REFRESH_INTERVALS } from '../config/constants'
 import { fetchNews } from '../services/newsService'
 import { toUserMessage } from '../services/httpClient'
 import type { AsyncState } from '../types/asyncState'
@@ -72,10 +72,8 @@ export function useNews(): AsyncState<NewsItem[]> {
     }
 
     void run()
-    const timer = setInterval(() => void loadFull(), REFRESH_INTERVALS.news)
     return () => {
       controller.abort()
-      clearInterval(timer)
     }
   }, [refreshToken])
 

@@ -10,10 +10,10 @@
  * Results are cached in-process; the edge cache (s-maxage) dedupes across users.
  */
 
-import { parseFeed } from './rss'
-import { REGIONS, inferRegionId } from './regions'
-import { fetchTelegram } from './telegram'
-import { mapLimit, stripHtml, truncate, type NewsItem } from './util'
+import { parseFeed } from './rss.js'
+import { REGIONS, inferRegionId } from './regions.js'
+import { fetchTelegram } from './telegram.js'
+import { mapLimit, stripHtml, truncate, type NewsItem } from './util.js'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
@@ -72,10 +72,16 @@ const CITY_QUERIES: ReadonlyArray<{ query: string; regionId: string }> = [
 
 let cache: { at: number; items: NewsItem[] } | null = null
 
-/** Fetch a URL as text with a browser-like UA. Null on any failure. */
+/** Per-request timeout so one slow upstream cannot hang the whole function. */
+const FETCH_TIMEOUT_MS = 7000
+
+/** Fetch a URL as text with a browser-like UA. Null on any failure/timeout. */
 async function fetchText(url: string): Promise<string | null> {
   try {
-    const response = await fetch(url, { headers: { 'User-Agent': UA, Accept: '*/*' } })
+    const response = await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: '*/*' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    })
     if (!response.ok) return null
     return await response.text()
   } catch {
@@ -271,12 +277,15 @@ function titleKey(title: string): string {
 /**
  * Aggregate all news (state-tagged where possible), newest first, cached.
  *
+ * Upstream sources are hit at most once per {@link CACHE_TTL_MS} (8 min): the
+ * in-process cache always wins inside that window, even for a manual refresh, so
+ * neither the user's nor the server's IP can hammer the sources.
+ *
  * @param now - Current epoch ms.
- * @param force - Skip the cache (used by the manual refresh).
  * @returns The merged news list.
  */
-export async function aggregateNews(now: number = Date.now(), force = false): Promise<NewsItem[]> {
-  if (!force && cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
+export async function aggregateNews(now: number = Date.now()): Promise<NewsItem[]> {
+  if (cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
 
   const [general, topics, perState, cities, outlets, reddit, telegram, youtube] = await Promise.all([
     fetchGeneral(),

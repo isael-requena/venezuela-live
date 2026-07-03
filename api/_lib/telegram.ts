@@ -7,8 +7,8 @@
  * extract the newest posts: text, date, image and the canonical post link.
  */
 
-import { stripHtml, truncate, type NewsItem } from './util'
-import { inferRegionId } from './regions'
+import { stripHtml, truncate, type NewsItem } from './util.js'
+import { inferRegionId } from './regions.js'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
@@ -89,6 +89,7 @@ async function fetchChannel(channel: string): Promise<string | null> {
   try {
     const response = await fetch(`https://t.me/s/${channel}`, {
       headers: { 'User-Agent': UA, Accept: 'text/html' },
+      signal: AbortSignal.timeout(7000),
     })
     if (!response.ok) return null
     return await response.text()
