@@ -238,35 +238,45 @@ interface MapControlsProps {
 /** Floating glass map controls: locate, layer toggle, and zoom. */
 function MapControls({ satellite, onToggleSatellite }: MapControlsProps): ReactNode {
   const map = useMap()
-  const [showLocate, setShowLocate] = useState(true)
+  const [showLocate, setShowLocate] = useState(false)
+  const posRef = useRef<LatLngTuple | null>(null)
   const stop = (event: { stopPropagation: () => void }): void => event.stopPropagation()
 
-  // Hide the "locate" button only when we KNOW the user is outside Venezuela
-  // (permission already granted). Otherwise show it — the click will prompt.
+  // Ask for the user's location on mount; only show the "locate me" button if
+  // they accept AND are inside Venezuela.
   useEffect(() => {
-    if (typeof navigator === 'undefined' || navigator.permissions === undefined) return
-    navigator.permissions
-      .query({ name: 'geolocation' })
-      .then((status) => {
-        if (status.state === 'granted' && navigator.geolocation !== undefined) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => setShowLocate(isInVenezuela(pos.coords.latitude, pos.coords.longitude)),
-            () => undefined,
-            { maximumAge: 10 * 60 * 1000 },
-          )
+    if (typeof navigator === 'undefined' || navigator.geolocation === undefined) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        if (isInVenezuela(latitude, longitude)) {
+          posRef.current = [latitude, longitude]
+          setShowLocate(true)
         }
-      })
-      .catch(() => undefined)
+      },
+      () => undefined,
+      { maximumAge: 10 * 60 * 1000, timeout: 8000 },
+    )
   }, [])
 
   const locate = (): void => {
+    const known = posRef.current
+    if (known !== null) {
+      try {
+        map.flyTo(known, 12, { duration: 1 })
+      } catch {
+        /* ignore */
+      }
+      return
+    }
     if (navigator.geolocation === undefined) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
         if (isInVenezuela(latitude, longitude)) {
+          posRef.current = [latitude, longitude]
           try {
-            map.flyTo([latitude, longitude], 11, { duration: 1 })
+            map.flyTo([latitude, longitude], 12, { duration: 1 })
           } catch {
             /* ignore */
           }
@@ -282,7 +292,7 @@ function MapControls({ satellite, onToggleSatellite }: MapControlsProps): ReactN
 
   return (
     <div
-      className="absolute bottom-[52%] left-1/2 z-[400] flex -translate-x-1/2 gap-2 lg:bottom-5"
+      className="absolute bottom-[calc(50%+6px)] left-1/2 z-[400] flex -translate-x-1/2 gap-2 lg:bottom-5"
       onMouseDown={stop}
       onDoubleClick={stop}
     >

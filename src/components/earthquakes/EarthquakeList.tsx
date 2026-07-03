@@ -36,7 +36,7 @@ function EarthquakeRow({
       <button
         type="button"
         onClick={() => onSelect(quake)}
-        className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
+        className="flex w-full items-center gap-3 rounded-xl bg-white/[0.04] px-2 py-2 text-left transition-colors hover:bg-white/[0.08]"
       >
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-black shadow-lg"

@@ -47,6 +47,12 @@ function App(): ReactNode {
   const [mobileView, setMobileView] = useState<MobileView>('news')
   const [toast, setToast] = useState<string | null>(null)
   const nonceRef = useRef(0)
+  const mobileScrollRef = useRef<HTMLDivElement>(null)
+
+  const showMobileView = useCallback((view: MobileView) => {
+    setMobileView(view)
+    mobileScrollRef.current?.scrollTo({ top: 0 })
+  }, [])
 
   /** Fly the map to a coordinate, forcing a re-trigger each call. */
   const flyTo = useCallback((coords: MapFocus['coords'], zoom: number) => {
@@ -163,7 +169,7 @@ function App(): ReactNode {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setMobileView(tab.id)}
+                  onClick={() => showMobileView(tab.id)}
                   className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors ${
                     mobileView === tab.id ? 'bg-sky-500/25 text-sky-200' : 'text-slate-400'
                   }`}
@@ -173,7 +179,7 @@ function App(): ReactNode {
                 </button>
               ))}
             </div>
-            <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+            <div ref={mobileScrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto">
               {mobileView === 'sismos' ? sismosPanel : newsPanel}
             </div>
           </div>

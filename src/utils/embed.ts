@@ -1,14 +1,40 @@
 /**
  * Resolve an embeddable URL for the in-app reader iframe.
  *
- * Most sites block being framed (X-Frame-Options / CSP), but several platforms
- * expose dedicated embed endpoints that DO work inside an iframe:
+ * Most sites block being framed (X-Frame-Options / CSP), so framing a random
+ * article yields a blank white page. We only frame:
  *  - YouTube  → `youtube.com/embed/<id>`
  *  - Telegram → `t.me/<channel>/<id>?embed=1`
- * For everything else we attempt the raw link and let the UI show a fallback.
+ *  - outlets verified to allow framing (see FRAMABLE_HOSTS).
+ * Everything else shows the info card + "open in a new tab" (never a blank frame).
  */
 
 import type { NewsItem } from '../types/domain'
+
+/** Outlet hosts verified (via X-Frame-Options / CSP) to allow being framed. */
+const FRAMABLE_HOSTS: readonly string[] = [
+  'efectococuyo.com',
+  'lapatilla.com',
+  'cronica.uno',
+  'analitica.com',
+  'contrapunto.com',
+  'versionfinal.com.ve',
+  'elcooperante.com',
+  '2001.com.ve',
+  'ultimasnoticias.com.ve',
+  'globovision.com',
+  'noticierodigital.com',
+]
+
+/** Whether a URL's host is on the framable whitelist. */
+function isFramableHost(link: string): boolean {
+  try {
+    const host = new URL(link).hostname.replace(/^www\./, '')
+    return FRAMABLE_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))
+  } catch {
+    return false
+  }
+}
 
 /** An iframe target plus whether it is known to allow framing. */
 export interface EmbedTarget {
@@ -59,5 +85,5 @@ export function embedTarget(item: NewsItem): EmbedTarget {
     const embed = telegramEmbed(item.link)
     if (embed !== null) return { url: embed, embeddable: true }
   }
-  return { url: item.link, embeddable: false }
+  return { url: item.link, embeddable: isFramableHost(item.link) }
 }

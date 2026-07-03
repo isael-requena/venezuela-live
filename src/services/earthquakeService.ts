@@ -58,11 +58,12 @@ function buildUrl(minMagnitude: number): string {
  * Fetch recent earthquakes within Venezuela.
  *
  * @param signal - Optional abort signal.
- * @param minMagnitude - Minimum magnitude (defaults to 2.0 to cut noise).
+ * @param minMagnitude - Minimum magnitude (defaults to 1.5 to include more of
+ *   the most recent, smaller events).
  * @returns Earthquakes sorted from newest to oldest.
  * @throws {HttpError} On network/HTTP failure.
  */
-export async function fetchEarthquakes(signal?: AbortSignal, minMagnitude = 2.0): Promise<Earthquake[]> {
+export async function fetchEarthquakes(signal?: AbortSignal, minMagnitude = 1.5): Promise<Earthquake[]> {
   const raw = await fetchJson(buildUrl(minMagnitude), signal)
   const parsed = usgsResponseSchema.parse(raw)
 

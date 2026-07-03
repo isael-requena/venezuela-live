@@ -18,7 +18,7 @@ const AUTHOR_URL = 'https://github.com/isael-requena'
  */
 export function Header({ isOnline }: HeaderProps): ReactNode {
   return (
-    <header className="flex items-center justify-between gap-3 px-1">
+    <header className="flex items-center justify-between gap-2 px-1">
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
         <span
           className="inline-block h-6 w-9 shrink-0 rounded-sm shadow-lg sm:h-7 sm:w-10"
@@ -26,12 +26,21 @@ export function Header({ isOnline }: HeaderProps): ReactNode {
           aria-hidden
         />
         <div className="min-w-0">
-          <h1 className="neon-text truncate text-base leading-tight font-bold text-white sm:text-lg">
+          <h1 className="neon-text text-base leading-tight font-bold text-white sm:text-lg">
             Venezuela en Vivo
           </h1>
-          <p className="truncate text-[11px] text-slate-400 sm:text-xs">
+          <p className="text-[11px] leading-snug text-slate-400 sm:text-xs">
             Sismos, dólar y noticias en tiempo real
           </p>
+          <a
+            href={AUTHOR_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 flex w-fit items-center gap-1 text-[10px] text-slate-500 transition-colors hover:text-slate-300 lg:hidden"
+          >
+            <IconGithub className="h-3 w-3" /> Hecho por Isael Requena{' '}
+            <IconHeart className="h-2.5 w-2.5 text-red-400" />
+          </a>
         </div>
       </div>
 
@@ -41,16 +50,14 @@ export function Header({ isOnline }: HeaderProps): ReactNode {
           target="_blank"
           rel="noopener noreferrer"
           title="Desarrollado con ❤️ por Isael Jafeth Requena"
-          className="flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
+          className="hidden items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white lg:flex"
         >
           <IconGithub className="h-3.5 w-3.5" />
-          <span className="hidden items-center gap-1 lg:flex">
-            Isael Requena <IconHeart className="h-3 w-3 text-red-400" />
-          </span>
+          Isael Requena <IconHeart className="h-3 w-3 text-red-400" />
         </a>
 
         <div
-          className={`flex items-center gap-2 rounded-full px-2.5 py-1.5 text-xs font-medium sm:px-3 ${
+          className={`hidden items-center gap-2 rounded-full px-2.5 py-1.5 text-xs font-medium sm:px-3 lg:flex ${
             isOnline ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'
           }`}
           title={isOnline ? 'Conectado: datos en vivo' : 'Sin conexión: mostrando datos guardados'}

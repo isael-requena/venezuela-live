@@ -31,15 +31,26 @@ const OUTLETS: ReadonlyArray<{ id: string; name: string; url: string }> = [
   { id: 'cronica-uno', name: 'Crónica Uno', url: 'https://cronica.uno/feed/' },
   { id: 'el-nacional', name: 'El Nacional', url: 'https://www.elnacional.com/feed/' },
   { id: 'la-patilla', name: 'La Patilla', url: 'https://www.lapatilla.com/feed/' },
-  { id: 'tal-cual-2', name: 'Diario 2001', url: 'https://www.2001.com.ve/feed/' },
+  { id: 'diario-2001', name: 'Diario 2001', url: 'https://www.2001.com.ve/feed/' },
+  { id: 'el-impulso', name: 'El Impulso', url: 'https://www.elimpulso.com/feed/' },
+  { id: 'analitica', name: 'Analítica', url: 'https://www.analitica.com/feed/' },
+  { id: 'contrapunto', name: 'Contrapunto', url: 'https://contrapunto.com/feed/' },
+  { id: 'version-final', name: 'Versión Final', url: 'https://versionfinal.com.ve/feed/' },
+  { id: 'descifrado', name: 'Descifrado', url: 'https://www.descifrado.com/feed/' },
+  { id: 'el-cooperante', name: 'El Cooperante', url: 'https://elcooperante.com/feed/' },
+  { id: 'ultimas-noticias', name: 'Últimas Noticias', url: 'https://ultimasnoticias.com.ve/feed/' },
 ]
 
-/** Topical Google News queries for broad, recent official coverage. */
+/** Topical Google News queries for broad, recent coverage (incl. the crisis). */
 const TOPIC_QUERIES: readonly string[] = [
   'Venezuela noticias when:1d',
   'Venezuela política when:2d',
   'Venezuela economía when:2d',
   'Venezuela sucesos when:1d',
+  'terremoto OR sismo Venezuela when:2d',
+  'emergencia OR damnificados Venezuela when:2d',
+  'ayuda humanitaria Venezuela when:3d',
+  'servicios OR gasolina OR electricidad Venezuela when:2d',
 ]
 
 /** Notable cities/islands queried explicitly and tagged to their state. */
@@ -282,9 +293,15 @@ export async function aggregateNews(now: number = Date.now(), force = false): Pr
       if (key.length === 0) continue
       const existing = byKey.get(key)
       if (existing !== undefined) {
-        // Same story from another source: enrich the one we kept with an image
-        // (Google News lacks images; the outlet RSS version has them).
+        // Same story from another source: enrich the one we kept.
         if (existing.imageUrl === null && item.imageUrl !== null) existing.imageUrl = item.imageUrl
+        // Prefer a direct outlet link over a Google News redirect (real domain →
+        // opens directly and can be framed when the outlet allows it).
+        if (existing.link.includes('news.google.com') && !item.link.includes('news.google.com')) {
+          existing.link = item.link
+          existing.sourceName = item.sourceName
+          if (item.imageUrl !== null) existing.imageUrl = item.imageUrl
+        }
         continue
       }
       byKey.set(key, item)

@@ -69,7 +69,7 @@ function NewsRow({
       <button
         type="button"
         onClick={() => onSelect(item)}
-        className="flex w-full gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
+        className="flex w-full gap-3 rounded-xl bg-white/[0.04] px-2 py-2 text-left transition-colors hover:bg-white/[0.08]"
       >
         {showImage ? (
           <img
@@ -77,6 +77,7 @@ function NewsRow({
             alt=""
             loading="lazy"
             decoding="async"
+            referrerPolicy="no-referrer"
             className="h-16 w-24 shrink-0 rounded-lg object-cover"
             onError={() => setImgFailed(true)}
           />
