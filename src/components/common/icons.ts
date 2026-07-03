@@ -15,6 +15,14 @@ export {
   LuRss as IconRss,
   LuClock as IconClock,
   LuGlobe as IconGlobe,
+  LuLocate as IconLocate,
+  LuLayers as IconLayers,
+  LuHeart as IconHeart,
 } from 'react-icons/lu'
 
-export { SiTelegram as IconTelegram, SiReddit as IconReddit, SiYoutube as IconYoutube } from 'react-icons/si'
+export {
+  SiTelegram as IconTelegram,
+  SiReddit as IconReddit,
+  SiYoutube as IconYoutube,
+  SiGithub as IconGithub,
+} from 'react-icons/si'

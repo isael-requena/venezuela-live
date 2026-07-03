@@ -6,7 +6,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { Modal } from '../common/Modal'
-import { IconClose, IconExternal, IconNews, IconPin } from '../common/icons'
+import { IconClose, IconExternal, IconGlobe, IconNews, IconPin } from '../common/icons'
 import type { NewsItem } from '../../types/domain'
 import { embedTarget } from '../../utils/embed'
 import { formatRelativeTime } from '../../utils/format'
@@ -24,8 +24,14 @@ interface NewsFlyoutProps {
  */
 export function NewsFlyout({ item, regionName, onClose }: NewsFlyoutProps): ReactNode {
   const [isReading, setIsReading] = useState(false)
+  const [frameError, setFrameError] = useState(false)
   const canOpen = isHttpUrl(item.link)
   const host = hostnameOf(item.link)
+
+  const closeReader = (): void => {
+    setIsReading(false)
+    setFrameError(false)
+  }
 
   // Close the card with Escape (matches modal behavior).
   useEffect(() => {
@@ -38,14 +44,60 @@ export function NewsFlyout({ item, regionName, onClose }: NewsFlyoutProps): Reac
 
   if (isReading && canOpen) {
     const target = embedTarget(item)
+    const canEmbed = target.embeddable && !frameError
+
+    // Only sites we KNOW can be framed (YouTube/Telegram embeds) get an iframe.
+    // Everything else shows a clean message + "open in a new tab" — never a blank
+    // white frame.
+    if (!canEmbed) {
+      return (
+        <Modal title={item.title} onClose={closeReader}>
+          <div className="flex flex-col items-center gap-4 p-6 pt-9 text-center">
+            {item.imageUrl !== null && (
+              <img
+                src={item.imageUrl}
+                alt=""
+                className="max-h-56 w-full rounded-xl object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                }}
+              />
+            )}
+            <div>
+              <p className="text-xs text-slate-400">
+                <span className="font-semibold text-sky-300">{item.sourceName}</span> ·{' '}
+                {formatRelativeTime(item.publishedAt)} · {host}
+              </p>
+              <h2 className="mt-1 text-lg leading-snug font-bold text-white">{item.title}</h2>
+              {item.summary.length > 0 && (
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">{item.summary}</p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-sm text-slate-300">
+              <IconGlobe className="h-4 w-4 shrink-0 text-sky-300" />
+              No se puede abrir aquí la noticia — este medio no permite mostrarse dentro de la app.
+            </div>
+
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition-transform hover:scale-[1.02]"
+            >
+              Abrir noticia en pestaña <IconExternal className="h-4 w-4" />
+            </a>
+          </div>
+        </Modal>
+      )
+    }
+
     return (
-      <Modal title={item.title} onClose={() => setIsReading(false)} wide>
+      <Modal title={item.title} onClose={closeReader} wide>
         <div className="flex h-full min-h-0 flex-col">
           {/* pr-14 leaves room for the Modal's floating close (×) button */}
           <div className="flex items-center gap-2 py-2 pr-14 pl-4 text-xs text-slate-400">
-            <span className="min-w-0 flex-1 truncate">
-              {target.embeddable ? 'Reproductor' : 'Vista embebida'} · {host}
-            </span>
+            <span className="min-w-0 flex-1 truncate">Reproductor · {host}</span>
             <a
               href={item.link}
               target="_blank"
@@ -58,22 +110,18 @@ export function NewsFlyout({ item, regionName, onClose }: NewsFlyoutProps): Reac
           <iframe
             src={target.url}
             title={item.title}
-            className={`min-h-0 w-full flex-1 ${target.embeddable ? 'bg-black' : 'bg-white'}`}
+            className="min-h-0 w-full flex-1 bg-black"
             allow="encrypted-media; picture-in-picture; fullscreen; autoplay"
             referrerPolicy="no-referrer-when-downgrade"
+            onError={() => setFrameError(true)}
           />
-          {!target.embeddable && (
-            <p className="bg-black/40 px-4 py-2 text-center text-[11px] text-slate-500">
-              Si la noticia no carga aquí, el medio no permite incrustarla. Usa “Abrir en pestaña”.
-            </p>
-          )}
         </div>
       </Modal>
     )
   }
 
   return (
-    <div className="animate-fade-in pointer-events-none absolute top-[132px] left-1/2 z-[600] flex w-full max-w-[19rem] -translate-x-1/2 justify-center px-3 sm:max-w-sm sm:px-0 lg:top-auto lg:bottom-5">
+    <div className="animate-fade-in pointer-events-none absolute top-[172px] left-1/2 z-[600] flex w-full max-w-[19rem] -translate-x-1/2 justify-center px-3 sm:max-w-sm sm:px-0 lg:top-auto lg:bottom-5">
       <article className="glass-strong pointer-events-auto relative w-full overflow-hidden rounded-2xl shadow-2xl">
         <button
           type="button"

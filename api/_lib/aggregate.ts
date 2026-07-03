@@ -1,112 +1,48 @@
 /**
- * Server-side news aggregator (runs in the Vercel Function / Vite dev middleware).
+ * Server-side news aggregator (Vercel Function + Vite dev middleware).
  *
- * Fetching from a server (not the browser) removes CORS/proxy limitations, which
- * unlocks:
- *  - Google News RSS per Venezuelan state → real, recent, state-tagged news.
- *  - Outlet RSS with a real User-Agent (no 403s).
- *  - Reddit via RSS.
+ * Self-contained (no imports from `src/`) so it bundles reliably on Vercel.
+ * Fetching from a server removes CORS/proxy limits, unlocking:
+ *  - Google News RSS per state + topical queries (recent official coverage),
+ *  - outlet RSS with a real User-Agent (no 403s),
+ *  - Reddit via RSS, and YouTube via Data API v3 (when YOUTUBE_API_KEY is set).
  *
- * Instagram/Facebook are intentionally excluded: their public content cannot be
- * scraped reliably or legally even from a server (auth-walled, anti-bot).
+ * Results are cached in-process; the edge cache (s-maxage) dedupes across users.
  */
 
-import { parseFeed, type RawFeedItem } from './rss'
-import { VENEZUELA_REGIONS } from '../../src/config/regions'
-import { NEWS_SOURCES } from '../../src/config/newsSources'
-import { mapLimit } from '../../src/utils/concurrency'
-import { inferRegionId } from '../../src/utils/regionMatcher'
-import { stripHtml, truncate } from '../../src/utils/text'
-import type { NewsItem } from '../../src/types/domain'
+import { parseFeed } from './rss'
+import { REGIONS, inferRegionId } from './regions'
+import { mapLimit, stripHtml, truncate, type NewsItem } from './util'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 const SUMMARY_MAX = 260
 const PER_STATE = 5
-const GENERAL_MAX = 18
+const GENERAL_MAX = 20
 const CONCURRENCY = 8
-const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_TTL_MS = 8 * 60 * 1000
 
-/** Simple module-level cache so repeated calls within the TTL are instant. */
-let cache: { at: number; items: NewsItem[] } | null = null
+/** Official outlet RSS feeds (server-side fetch, no CORS). */
+const OUTLETS: ReadonlyArray<{ id: string; name: string; url: string }> = [
+  { id: 'efecto-cocuyo', name: 'Efecto Cocuyo', url: 'https://efectococuyo.com/feed/' },
+  { id: 'runrunes', name: 'Runrun.es', url: 'https://runrun.es/feed/' },
+  { id: 'el-pitazo', name: 'El Pitazo', url: 'https://elpitazo.net/feed/' },
+  { id: 'tal-cual', name: 'TalCual', url: 'https://talcualdigital.com/feed/' },
+  { id: 'cronica-uno', name: 'Crónica Uno', url: 'https://cronica.uno/feed/' },
+  { id: 'el-nacional', name: 'El Nacional', url: 'https://www.elnacional.com/feed/' },
+  { id: 'la-patilla', name: 'La Patilla', url: 'https://www.lapatilla.com/feed/' },
+  { id: 'tal-cual-2', name: 'Diario 2001', url: 'https://www.2001.com.ve/feed/' },
+]
 
-/** Fetch a URL as text with a browser-like UA. Returns null on any failure. */
-async function fetchText(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url, { headers: { 'User-Agent': UA, Accept: '*/*' } })
-    if (!response.ok) return null
-    return await response.text()
-  } catch {
-    return null
-  }
-}
+/** Topical Google News queries for broad, recent official coverage. */
+const TOPIC_QUERIES: readonly string[] = [
+  'Venezuela noticias when:1d',
+  'Venezuela política when:2d',
+  'Venezuela economía when:2d',
+  'Venezuela sucesos when:1d',
+]
 
-/** Build a Google News RSS search URL for a query. */
-function googleNewsUrl(query: string): string {
-  const params = new URLSearchParams({ q: query, hl: 'es-419', gl: 'VE', ceid: 'VE:es' })
-  return `https://news.google.com/rss/search?${params.toString()}`
-}
-
-/** Parse an RSS date to epoch ms, or null. */
-function parseDate(value: string | null): number | null {
-  if (value === null) return null
-  const ms = Date.parse(value)
-  return Number.isNaN(ms) ? null : ms
-}
-
-/** Google News titles end with " - Outlet"; split headline and outlet. */
-function splitGoogleTitle(title: string, source: string | null): { title: string; outlet: string } {
-  const dash = title.lastIndexOf(' - ')
-  if (source !== null && source.length > 0) {
-    return { title: dash > 0 ? title.slice(0, dash) : title, outlet: source }
-  }
-  if (dash > 0) return { title: title.slice(0, dash), outlet: title.slice(dash + 3) }
-  return { title, outlet: 'Google News' }
-}
-
-/** Map a raw Google News item to a NewsItem for a given region (or general). */
-function toGoogleNewsItem(raw: RawFeedItem, regionId: string | null, index: number): NewsItem | null {
-  if (raw.title.length === 0 || !/^https?:/i.test(raw.link)) return null
-  const { title, outlet } = splitGoogleTitle(stripHtml(raw.title), raw.source)
-  return {
-    id: `gn-${regionId ?? 'gen'}-${index}-${raw.link}`,
-    title,
-    link: raw.link,
-    summary: truncate(stripHtml(raw.description), SUMMARY_MAX),
-    publishedAt: parseDate(raw.pubDate),
-    sourceName: outlet,
-    regionId,
-    imageUrl: raw.imageUrl,
-    category: 'oficial',
-    platform: 'rss',
-  }
-}
-
-/** Fetch the broad, most-recent national news bucket (region = null). */
-async function fetchGeneral(): Promise<NewsItem[]> {
-  const xml = await fetchText(googleNewsUrl('Venezuela noticias when:1d'))
-  if (xml === null) return []
-  return parseFeed(xml)
-    .slice(0, GENERAL_MAX)
-    .map((raw, index) => toGoogleNewsItem(raw, null, index))
-    .filter((item): item is NewsItem => item !== null)
-}
-
-/** Fetch state-tagged news for every region via Google News (state name only). */
-async function fetchPerState(): Promise<NewsItem[]> {
-  const perRegion = await mapLimit(VENEZUELA_REGIONS, CONCURRENCY, async (region) => {
-    const xml = await fetchText(googleNewsUrl(`"${region.name}" Venezuela when:4d`))
-    if (xml === null) return []
-    return parseFeed(xml)
-      .slice(0, PER_STATE)
-      .map((raw, index) => toGoogleNewsItem(raw, region.id, index))
-      .filter((item): item is NewsItem => item !== null)
-  })
-  return perRegion.flat()
-}
-
-/** Notable cities/islands queried explicitly and tagged to their state, so
- * places like Punto Fijo or Isla de Margarita get their own coverage. */
+/** Notable cities/islands queried explicitly and tagged to their state. */
 const CITY_QUERIES: ReadonlyArray<{ query: string; regionId: string }> = [
   { query: 'Punto Fijo', regionId: 'falcon' },
   { query: 'Isla de Margarita', regionId: 'nueva-esparta' },
@@ -122,23 +58,91 @@ const CITY_QUERIES: ReadonlyArray<{ query: string; regionId: string }> = [
   { query: 'Los Teques', regionId: 'miranda' },
 ]
 
-/** Fetch city-level news for the curated {@link CITY_QUERIES}. */
+let cache: { at: number; items: NewsItem[] } | null = null
+
+/** Fetch a URL as text with a browser-like UA. Null on any failure. */
+async function fetchText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { headers: { 'User-Agent': UA, Accept: '*/*' } })
+    if (!response.ok) return null
+    return await response.text()
+  } catch {
+    return null
+  }
+}
+
+function googleNewsUrl(query: string): string {
+  const params = new URLSearchParams({ q: query, hl: 'es-419', gl: 'VE', ceid: 'VE:es' })
+  return `https://news.google.com/rss/search?${params.toString()}`
+}
+
+function parseDate(value: string | null): number | null {
+  if (value === null) return null
+  const ms = Date.parse(value)
+  return Number.isNaN(ms) ? null : ms
+}
+
+function splitGoogleTitle(title: string, source: string | null): { title: string; outlet: string } {
+  const dash = title.lastIndexOf(' - ')
+  if (source !== null && source.length > 0) {
+    return { title: dash > 0 ? title.slice(0, dash) : title, outlet: source }
+  }
+  if (dash > 0) return { title: title.slice(0, dash), outlet: title.slice(dash + 3) }
+  return { title, outlet: 'Google News' }
+}
+
+/** Fetch one Google News query, mapping results to a region (or general). */
+async function fetchGoogleQuery(query: string, regionId: string | null, limit: number, tag: string): Promise<NewsItem[]> {
+  const xml = await fetchText(googleNewsUrl(query))
+  if (xml === null) return []
+  return parseFeed(xml)
+    .slice(0, limit)
+    .filter((raw) => raw.title.length > 0 && /^https?:/i.test(raw.link))
+    .map((raw, index): NewsItem => {
+      const { title, outlet } = splitGoogleTitle(stripHtml(raw.title), raw.source)
+      return {
+        id: `gn-${tag}-${index}-${raw.link}`,
+        title,
+        link: raw.link,
+        summary: truncate(stripHtml(raw.description), SUMMARY_MAX),
+        publishedAt: parseDate(raw.pubDate),
+        sourceName: outlet,
+        regionId,
+        imageUrl: raw.imageUrl,
+        category: 'oficial',
+        platform: 'rss',
+      }
+    })
+}
+
+async function fetchGeneral(): Promise<NewsItem[]> {
+  return fetchGoogleQuery('Venezuela noticias when:1d', null, GENERAL_MAX, 'gen')
+}
+
+async function fetchTopics(): Promise<NewsItem[]> {
+  const perTopic = await mapLimit(TOPIC_QUERIES, CONCURRENCY, (q, i) =>
+    fetchGoogleQuery(q, null, 12, `t${i}`),
+  )
+  return perTopic.flat()
+}
+
+async function fetchPerState(): Promise<NewsItem[]> {
+  const perRegion = await mapLimit(REGIONS, CONCURRENCY, (region) =>
+    fetchGoogleQuery(`"${region.name}" Venezuela when:4d`, region.id, PER_STATE, region.id),
+  )
+  return perRegion.flat()
+}
+
 async function fetchCities(): Promise<NewsItem[]> {
-  const perCity = await mapLimit(CITY_QUERIES, CONCURRENCY, async (city) => {
-    const xml = await fetchText(googleNewsUrl(`"${city.query}" Venezuela when:4d`))
-    if (xml === null) return []
-    return parseFeed(xml)
-      .slice(0, 4)
-      .map((raw, index) => toGoogleNewsItem(raw, city.regionId, index))
-      .filter((item): item is NewsItem => item !== null)
-  })
+  const perCity = await mapLimit(CITY_QUERIES, CONCURRENCY, (city) =>
+    fetchGoogleQuery(`"${city.query}" Venezuela when:4d`, city.regionId, 4, `c-${city.regionId}`),
+  )
   return perCity.flat()
 }
 
-/** Fetch outlet RSS feeds (they carry images Google News lacks). */
 async function fetchOutlets(): Promise<NewsItem[]> {
-  const perSource = await mapLimit(NEWS_SOURCES, CONCURRENCY, async (source) => {
-    const xml = await fetchText(source.feedUrl)
+  const perSource = await mapLimit(OUTLETS, CONCURRENCY, async (source) => {
+    const xml = await fetchText(source.url)
     if (xml === null) return []
     return parseFeed(xml)
       .slice(0, 10)
@@ -163,7 +167,6 @@ async function fetchOutlets(): Promise<NewsItem[]> {
   return perSource.flat()
 }
 
-/** Fetch a couple of Venezuela subreddits via RSS (social bucket). */
 async function fetchReddit(): Promise<NewsItem[]> {
   const subs = [
     { id: 'rd-vzla', name: 'r/vzla', sub: 'vzla' },
@@ -194,58 +197,119 @@ async function fetchReddit(): Promise<NewsItem[]> {
   return perSub.flat()
 }
 
-/** Normalize a title for de-duplication. */
+/** YouTube via Data API v3 — only when YOUTUBE_API_KEY is configured. */
+async function fetchYoutube(): Promise<NewsItem[]> {
+  const key = process.env.YOUTUBE_API_KEY
+  if (key === undefined || key.length === 0) return []
+  const params = new URLSearchParams({
+    part: 'snippet',
+    q: 'Venezuela noticias',
+    type: 'video',
+    order: 'date',
+    regionCode: 'VE',
+    relevanceLanguage: 'es',
+    maxResults: '12',
+    key,
+  })
+  const raw = await fetchText(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`)
+  if (raw === null) return []
+  try {
+    const json = JSON.parse(raw) as {
+      items?: Array<{
+        id?: { videoId?: string }
+        snippet?: {
+          title?: string
+          description?: string
+          publishedAt?: string
+          channelTitle?: string
+          thumbnails?: { high?: { url?: string }; medium?: { url?: string } }
+        }
+      }>
+    }
+    return (json.items ?? [])
+      .filter((v) => typeof v.id?.videoId === 'string' && typeof v.snippet?.title === 'string')
+      .map((v, index): NewsItem => {
+        const s = v.snippet ?? {}
+        const title = stripHtml(s.title ?? '')
+        const summary = truncate(stripHtml(s.description ?? ''), SUMMARY_MAX)
+        return {
+          id: `yt-${index}-${v.id?.videoId ?? ''}`,
+          title,
+          link: `https://www.youtube.com/watch?v=${v.id?.videoId ?? ''}`,
+          summary,
+          publishedAt: s.publishedAt !== undefined ? parseDate(s.publishedAt) : null,
+          sourceName: `${s.channelTitle ?? 'YouTube'} · YouTube`,
+          regionId: inferRegionId(`${title} ${summary}`),
+          imageUrl: s.thumbnails?.high?.url ?? s.thumbnails?.medium?.url ?? null,
+          category: 'social',
+          platform: 'youtube',
+        }
+      })
+  } catch {
+    return []
+  }
+}
+
 function titleKey(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9áéíóúñü ]/gi, '').replace(/\s+/g, ' ').trim()
 }
 
 /**
- * Aggregate all news, tagged by state where possible, newest first.
- * Results are cached in-process for {@link CACHE_TTL_MS}.
+ * Aggregate all news (state-tagged where possible), newest first, cached.
  *
- * @param now - Current epoch ms (injectable for testing).
+ * @param now - Current epoch ms.
+ * @param force - Skip the cache (used by the manual refresh).
  * @returns The merged news list.
  */
-export async function aggregateNews(now: number = Date.now()): Promise<NewsItem[]> {
-  if (cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
+export async function aggregateNews(now: number = Date.now(), force = false): Promise<NewsItem[]> {
+  if (!force && cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
 
-  const [general, perState, cities, outlets, reddit] = await Promise.all([
+  const [general, topics, perState, cities, outlets, reddit, youtube] = await Promise.all([
     fetchGeneral(),
+    fetchTopics(),
     fetchPerState(),
     fetchCities(),
     fetchOutlets(),
     fetchReddit(),
+    fetchYoutube(),
   ])
 
-  // General (national) news is authoritative for its titles; per-state queries
-  // then contribute only genuinely state-specific stories.
-  const seen = new Set<string>()
+  const byKey = new Map<string, NewsItem>()
   const merged: NewsItem[] = []
   const add = (items: NewsItem[]): void => {
     for (const item of items) {
       const key = titleKey(item.title)
-      if (key.length === 0 || seen.has(key)) continue
-      seen.add(key)
+      if (key.length === 0) continue
+      const existing = byKey.get(key)
+      if (existing !== undefined) {
+        // Same story from another source: enrich the one we kept with an image
+        // (Google News lacks images; the outlet RSS version has them).
+        if (existing.imageUrl === null && item.imageUrl !== null) existing.imageUrl = item.imageUrl
+        continue
+      }
+      byKey.set(key, item)
       merged.push(item)
     }
   }
   add(general)
+  add(topics)
   add(perState)
   add(cities)
   add(outlets)
   add(reddit)
+  add(youtube)
 
   const sorted = merged.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
   cache = { at: now, items: sorted }
   return sorted
 }
 
-/**
- * Fast subset for first paint: just the broad national bucket (one request),
- * so the UI shows recent news in ~1s while the full aggregation loads.
- *
- * @returns The general/national news list.
- */
+/** Fast subset for first paint: the broad national bucket only (~1s). */
 export async function aggregateGeneral(): Promise<NewsItem[]> {
   return fetchGeneral()
+}
+
+/** Epoch ms of the last full aggregation, or null if none yet. */
+export function lastAggregatedAt(): number | null {
+  return cache?.at ?? null
 }

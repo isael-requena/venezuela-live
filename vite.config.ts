@@ -16,13 +16,16 @@ function devNewsApi(): PluginOption {
         void (async () => {
           try {
             const mod = (await server.ssrLoadModule('/api/_lib/aggregate.ts')) as {
-              aggregateNews: () => Promise<unknown[]>
+              aggregateNews: (now?: number, force?: boolean) => Promise<unknown[]>
               aggregateGeneral: () => Promise<unknown[]>
+              lastAggregatedAt: () => number | null
             }
-            const general = (req.url ?? '').includes('scope=general')
-            const items = general ? await mod.aggregateGeneral() : await mod.aggregateNews()
+            const query = req.url ?? ''
+            const general = query.includes('scope=general')
+            const force = query.includes('refresh=1')
+            const items = general ? await mod.aggregateGeneral() : await mod.aggregateNews(Date.now(), force)
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({ items, generatedAt: Date.now() }))
+            res.end(JSON.stringify({ items, generatedAt: mod.lastAggregatedAt() ?? Date.now() }))
           } catch (error) {
             res.statusCode = 502
             res.setHeader('Content-Type', 'application/json; charset=utf-8')

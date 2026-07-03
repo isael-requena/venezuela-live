@@ -7,12 +7,12 @@
  * fly to a focus target and highlight a region. Purely presentational.
  */
 
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { LatLngTuple } from 'leaflet'
-import { IconClock, IconExternal, IconMinus, IconPlus } from '../common/icons'
+import { IconClock, IconExternal, IconLayers, IconLocate, IconMinus, IconPlus } from '../common/icons'
 import { DEFAULT_ZOOM, MAP_MAX_BOUNDS, VENEZUELA_CENTER } from '../../config/constants'
 import { VENEZUELA_REGIONS } from '../../config/regions'
 import type { Earthquake } from '../../types/domain'
@@ -225,30 +225,85 @@ function ScrollControl(): null {
   return null
 }
 
-/** Custom floating glass zoom buttons (replaces Leaflet's default control). */
-function MapZoom(): ReactNode {
+/** Rough bounding box of Venezuela (incl. islands) for the "locate me" button. */
+function isInVenezuela(lat: number, lng: number): boolean {
+  return lat >= 0.5 && lat <= 16 && lng >= -74.5 && lng <= -59
+}
+
+interface MapControlsProps {
+  readonly satellite: boolean
+  readonly onToggleSatellite: () => void
+}
+
+/** Floating glass map controls: locate, layer toggle, and zoom. */
+function MapControls({ satellite, onToggleSatellite }: MapControlsProps): ReactNode {
   const map = useMap()
+  const [showLocate, setShowLocate] = useState(true)
   const stop = (event: { stopPropagation: () => void }): void => event.stopPropagation()
+
+  // Hide the "locate" button only when we KNOW the user is outside Venezuela
+  // (permission already granted). Otherwise show it — the click will prompt.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || navigator.permissions === undefined) return
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((status) => {
+        if (status.state === 'granted' && navigator.geolocation !== undefined) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => setShowLocate(isInVenezuela(pos.coords.latitude, pos.coords.longitude)),
+            () => undefined,
+            { maximumAge: 10 * 60 * 1000 },
+          )
+        }
+      })
+      .catch(() => undefined)
+  }, [])
+
+  const locate = (): void => {
+    if (navigator.geolocation === undefined) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        if (isInVenezuela(latitude, longitude)) {
+          try {
+            map.flyTo([latitude, longitude], 11, { duration: 1 })
+          } catch {
+            /* ignore */
+          }
+        }
+      },
+      () => undefined,
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }
+
+  const btn =
+    'glass-strong flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform hover:scale-110'
+
   return (
     <div
-      className="absolute top-3 right-3 z-[400] flex flex-col gap-2 lg:top-auto lg:right-auto lg:bottom-5 lg:left-1/2 lg:flex-row lg:-translate-x-1/2"
+      className="absolute bottom-[52%] left-1/2 z-[400] flex -translate-x-1/2 gap-2 lg:bottom-5"
       onMouseDown={stop}
       onDoubleClick={stop}
     >
+      {showLocate && (
+        <button type="button" aria-label="Mi ubicación" onClick={locate} className={btn}>
+          <IconLocate className="h-5 w-5" />
+        </button>
+      )}
       <button
         type="button"
-        aria-label="Acercar"
-        onClick={() => map.zoomIn()}
-        className="glass-strong flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform hover:scale-110"
+        aria-label={satellite ? 'Mapa normal' : 'Mapa satelital'}
+        title={satellite ? 'Mapa normal' : 'Mapa satelital'}
+        onClick={onToggleSatellite}
+        className={`${btn} ${satellite ? 'text-sky-300' : ''}`}
       >
+        <IconLayers className="h-5 w-5" />
+      </button>
+      <button type="button" aria-label="Acercar" onClick={() => map.zoomIn()} className={btn}>
         <IconPlus className="h-5 w-5" />
       </button>
-      <button
-        type="button"
-        aria-label="Alejar"
-        onClick={() => map.zoomOut()}
-        className="glass-strong flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform hover:scale-110"
-      >
+      <button type="button" aria-label="Alejar" onClick={() => map.zoomOut()} className={btn}>
         <IconMinus className="h-5 w-5" />
       </button>
     </div>
@@ -287,6 +342,8 @@ export function EarthquakeMap({
       ? (VENEZUELA_REGIONS.find((region) => region.id === highlightRegionId) ?? null)
       : null
 
+  const [satellite, setSatellite] = useState(false)
+
   return (
     <MapContainer
       center={VENEZUELA_CENTER}
@@ -298,12 +355,22 @@ export function EarthquakeMap({
       className="h-full w-full"
     >
       <ScrollControl />
-      <MapZoom />
+      <MapControls satellite={satellite} onToggleSatellite={() => setSatellite((value) => !value)} />
       <MapFocusController focus={focus} />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &middot; CARTO'
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      />
+      {satellite ? (
+        <>
+          <TileLayer
+            attribution="&copy; Esri, Maxar, Earthstar Geographics"
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+          <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" />
+        </>
+      ) : (
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &middot; CARTO'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        />
+      )}
 
       {quakeMarkers}
 

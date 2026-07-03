@@ -102,6 +102,14 @@ async function fetchNewsClient(signal?: AbortSignal): Promise<NewsItem[]> {
   return merged.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
 }
 
+/** Drop items older than this — news should be recent (guards stale sources). */
+const MAX_AGE_MS = 45 * 24 * 60 * 60 * 1000
+
+/** Remove clearly-stale items; keep undated ones (they may be recent). */
+function dropStale(items: readonly NewsItem[], now: number = Date.now()): NewsItem[] {
+  return items.filter((item) => item.publishedAt === null || now - item.publishedAt <= MAX_AGE_MS)
+}
+
 /** Which slice of news to request from the API. */
 export type NewsScope = 'general' | 'full'
 
@@ -114,16 +122,22 @@ export type NewsScope = 'general' | 'full'
  * @param scope - `general` (quick) or `full` (everything).
  * @returns A date-sorted (newest first) list of articles.
  */
-export async function fetchNews(signal?: AbortSignal, scope: NewsScope = 'full'): Promise<NewsItem[]> {
-  const url = scope === 'general' ? '/api/news?scope=general' : '/api/news'
+export async function fetchNews(
+  signal?: AbortSignal,
+  scope: NewsScope = 'full',
+  refresh = false,
+): Promise<NewsItem[]> {
+  let url = scope === 'general' ? '/api/news?scope=general' : '/api/news'
+  if (refresh && scope === 'full') url += '?refresh=1'
   try {
     const response = await fetch(url, signal !== undefined ? { signal } : {})
     if (response.ok) {
       const parsed = apiResponseSchema.parse(await response.json())
-      if (parsed.items.length > 0) return parsed.items
+      if (parsed.items.length > 0) return dropStale(parsed.items)
     }
   } catch (error) {
     logError('api:news', error)
   }
-  return scope === 'general' ? [] : fetchNewsClient(signal)
+  if (scope === 'general') return []
+  return dropStale(await fetchNewsClient(signal))
 }

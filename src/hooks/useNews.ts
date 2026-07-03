@@ -26,7 +26,11 @@ export function useNews(): AsyncState<NewsItem[]> {
   const [refreshToken, setRefreshToken] = useState(0)
 
   const hasDataRef = useRef<boolean>((cached?.data?.length ?? 0) > 0)
-  const refresh = useCallback(() => setRefreshToken((token) => token + 1), [])
+  const forceRef = useRef<boolean>(false)
+  const refresh = useCallback(() => {
+    forceRef.current = true
+    setRefreshToken((token) => token + 1)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -34,8 +38,10 @@ export function useNews(): AsyncState<NewsItem[]> {
 
     const loadFull = async (): Promise<void> => {
       setIsLoading(true)
+      const force = forceRef.current
+      forceRef.current = false
       try {
-        const full = await fetchNews(signal, 'full')
+        const full = await fetchNews(signal, 'full', force)
         if (signal.aborted || full.length === 0) return
         setData(full)
         setLastUpdated(Date.now())

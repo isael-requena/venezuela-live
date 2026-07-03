@@ -19,9 +19,9 @@ export interface Region {
 }
 
 export const VENEZUELA_REGIONS: readonly Region[] = [
-  { id: 'distrito-capital', name: 'Distrito Capital', coordinates: [10.5, -66.92], aliases: ['caracas', 'distrito capital', 'libertador', 'ccs', 'el avila', 'cota mil', 'sabana grande', 'antimano', 'la pastora'] },
+  { id: 'distrito-capital', name: 'Distrito Capital', coordinates: [10.5, -66.92], aliases: ['caracas', 'distrito capital', 'libertador', 'ccs', 'el avila', 'cota mil', 'sabana grande', 'antimano', 'la pastora', 'el junquito', 'junquito'] },
   { id: 'miranda', name: 'Miranda', coordinates: [10.25, -66.4], aliases: ['miranda', 'los teques', 'guarenas', 'guatire', 'petare', 'baruta', 'chacao', 'el hatillo', 'charallave', 'ocumare del tuy', 'santa teresa del tuy', 'higuerote', 'barlovento', 'cua', 'san antonio de los altos', 'carrizal', 'los valles del tuy'] },
-  { id: 'la-guaira', name: 'La Guaira', coordinates: [10.6, -66.93], aliases: ['la guaira', 'vargas', 'maiquetia', 'catia la mar', 'macuto', 'naiguata', 'caraballeda', 'el junquito'] },
+  { id: 'la-guaira', name: 'La Guaira', coordinates: [10.6, -66.93], aliases: ['la guaira', 'vargas', 'maiquetia', 'catia la mar', 'macuto', 'naiguata', 'caraballeda', 'galipan'] },
   { id: 'zulia', name: 'Zulia', coordinates: [10.4, -71.8], aliases: ['zulia', 'maracaibo', 'cabimas', 'lago de maracaibo', 'ciudad ojeda', 'machiques', 'santa barbara del zulia', 'san francisco', 'la canada de urdaneta', 'perija', 'mara', 'sur del lago'] },
   { id: 'carabobo', name: 'Carabobo', coordinates: [10.18, -68.0], aliases: ['carabobo', 'valencia', 'puerto cabello', 'naguanagua', 'guacara', 'san diego', 'los guayos', 'tocuyito', 'moron', 'bejuma', 'guigue'] },
   { id: 'aragua', name: 'Aragua', coordinates: [10.18, -67.4], aliases: ['aragua', 'maracay', 'turmero', 'la victoria', 'cagua', 'el limon', 'palo negro', 'villa de cura', 'san casimiro', 'santa rita', 'la encrucijada'] },
