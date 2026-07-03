@@ -129,6 +129,12 @@ export function NewsPanel({ state, selectedRegionId, onSelectRegion, onSelectNew
     setVisible(PAGE_SIZE)
   }, [origin, selectedRegionId])
 
+  // Picking a state on the map should surface everything from that state, so a
+  // narrow "Redes"/"Oficiales" filter must not hide most of it: reset to "Todas".
+  useEffect(() => {
+    if (selectedRegionId !== null) setOrigin('all')
+  }, [selectedRegionId])
+
   // Infinite scroll: reveal more as the sentinel nears the scroll viewport.
   useEffect(() => {
     const sentinel = sentinelRef.current

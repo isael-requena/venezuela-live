@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { IconGithub, IconHeart } from '../common/icons'
+import { VenezuelaFlag } from '../common/VenezuelaFlag'
 
 interface HeaderProps {
   /** Whether the browser currently has connectivity. */
@@ -20,11 +21,7 @@ export function Header({ isOnline }: HeaderProps): ReactNode {
   return (
     <header className="flex items-center justify-between gap-2 px-1">
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-        <span
-          className="inline-block h-6 w-9 shrink-0 rounded-sm shadow-lg sm:h-7 sm:w-10"
-          style={{ background: 'linear-gradient(to bottom, #fcd34d 33%, #2563eb 33% 66%, #dc2626 66%)' }}
-          aria-hidden
-        />
+        <VenezuelaFlag className="h-6 w-9 shrink-0 overflow-hidden rounded-sm shadow-lg sm:h-7 sm:w-10" />
         <div className="min-w-0">
           <h1 className="neon-text text-base leading-tight font-bold text-white sm:text-lg">
             Venezuela en Vivo
