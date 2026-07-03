@@ -40,16 +40,19 @@ function devNewsApi(): PluginOption {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   // Neutralize console.* in production builds (no logs for end users); keep them
-  // during dev so the dev-only logger (utils/logger) stays useful.
-  define:
-    mode === 'production'
+  // during dev so the dev-only logger (utils/logger) stays useful. __APP_VERSION__
+  // is the Vercel commit sha (short) so users can tell which build they run.
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'dev'),
+    ...(mode === 'production'
       ? {
           'console.log': '(()=>{})',
           'console.error': '(()=>{})',
           'console.warn': '(()=>{})',
           'console.debug': '(()=>{})',
         }
-      : {},
+      : {}),
+  },
   plugins: [
     devNewsApi(),
     react(),

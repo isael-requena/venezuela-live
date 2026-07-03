@@ -18,6 +18,7 @@ export {
   LuLocate as IconLocate,
   LuLayers as IconLayers,
   LuHeart as IconHeart,
+  LuRefreshCw as IconRefresh,
 } from 'react-icons/lu'
 
 export {

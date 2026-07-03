@@ -6,6 +6,7 @@ import { EarthquakeList } from './components/earthquakes/EarthquakeList'
 import { NewsPanel } from './components/news/NewsPanel'
 import { NewsFlyout } from './components/news/NewsFlyout'
 import { Toast } from './components/common/Toast'
+import { VersionBadge } from './components/common/VersionBadge'
 import { IconNews, IconQuake } from './components/common/icons'
 import { useEarthquakes } from './hooks/useEarthquakes'
 import { useDolar } from './hooks/useDolar'
@@ -188,6 +189,9 @@ function App(): ReactNode {
 
       {/* Top toast (e.g. national-scope news) */}
       <Toast message={toast} onDismiss={() => setToast(null)} />
+
+      {/* Subtle build version + one-tap PWA update */}
+      <VersionBadge />
 
       {/* Floating news card over the map */}
       {activeNews !== null && (

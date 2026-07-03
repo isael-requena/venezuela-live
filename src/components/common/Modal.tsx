@@ -31,7 +31,7 @@ export function Modal({ title, onClose, wide = false, children }: ModalProps): R
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-2 backdrop-blur-sm sm:p-4"
       onClick={onClose}
       role="presentation"
     >
@@ -39,8 +39,12 @@ export function Modal({ title, onClose, wide = false, children }: ModalProps): R
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`glass-strong animate-scale-in relative flex w-full flex-col overflow-hidden rounded-2xl ${
-          wide ? 'h-[92vh] max-w-6xl' : 'max-h-[88vh] max-w-2xl'
+        // dvh (dynamic viewport) so the mobile browser's URL/tool bars are
+        // excluded: the dialog can never exceed the visible screen height/width.
+        className={`glass-strong animate-scale-in relative flex w-full max-w-full flex-col overflow-hidden rounded-2xl ${
+          wide
+            ? 'h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-6xl sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)]'
+            : 'max-h-[calc(100dvh-1rem)] max-w-2xl sm:max-h-[calc(100dvh-2rem)]'
         }`}
         onClick={(event) => event.stopPropagation()}
       >

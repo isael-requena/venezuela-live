@@ -13,7 +13,6 @@ import type { NewsItem } from '../types/domain'
 
 /** Outlet hosts verified (via X-Frame-Options / CSP) to allow being framed. */
 const FRAMABLE_HOSTS: readonly string[] = [
-  'efectococuyo.com',
   'lapatilla.com',
   'cronica.uno',
   'analitica.com',
