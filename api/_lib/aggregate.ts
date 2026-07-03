@@ -12,6 +12,7 @@
 
 import { parseFeed } from './rss'
 import { REGIONS, inferRegionId } from './regions'
+import { fetchTelegram } from './telegram'
 import { mapLimit, stripHtml, truncate, type NewsItem } from './util'
 
 const UA =
@@ -183,7 +184,9 @@ async function fetchReddit(): Promise<NewsItem[]> {
     { id: 'rd-vzla', name: 'r/vzla', sub: 'vzla' },
     { id: 'rd-venezuela', name: 'r/Venezuela', sub: 'Venezuela' },
   ]
-  const perSub = await mapLimit(subs, 2, async (s) => {
+  // Concurrency 1: Reddit rate-limits (429) two near-simultaneous requests from
+  // the same IP, which would silently empty the "Redes" tab.
+  const perSub = await mapLimit(subs, 1, async (s) => {
     const xml = await fetchText(`https://www.reddit.com/r/${s.sub}/new/.rss?limit=10`)
     if (xml === null) return []
     return parseFeed(xml)
@@ -275,13 +278,14 @@ function titleKey(title: string): string {
 export async function aggregateNews(now: number = Date.now(), force = false): Promise<NewsItem[]> {
   if (!force && cache !== null && now - cache.at < CACHE_TTL_MS) return cache.items
 
-  const [general, topics, perState, cities, outlets, reddit, youtube] = await Promise.all([
+  const [general, topics, perState, cities, outlets, reddit, telegram, youtube] = await Promise.all([
     fetchGeneral(),
     fetchTopics(),
     fetchPerState(),
     fetchCities(),
     fetchOutlets(),
     fetchReddit(),
+    fetchTelegram(now),
     fetchYoutube(),
   ])
 
@@ -314,6 +318,7 @@ export async function aggregateNews(now: number = Date.now(), force = false): Pr
   add(cities)
   add(outlets)
   add(reddit)
+  add(telegram)
   add(youtube)
 
   const sorted = merged.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
