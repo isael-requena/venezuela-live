@@ -79,23 +79,38 @@ body {
 /* ------------------------------------------------------------------ *
  * Glassmorphism utilities
  * ------------------------------------------------------------------ */
-/* macOS-style frosted glass: heavy blur, translucent, NO borders — depth comes
- * purely from blur + a soft drop shadow so the map stays visible behind. */
+/* macOS-style frosted glass. Depth comes from blur + a soft drop shadow so the
+ * map stays visible behind. IMPORTANT: the base rule is a SOLID (opaque) fill so
+ * that on browsers/GPUs without backdrop-filter the panels stay readable instead
+ * of showing through as transparent. The frosted, translucent look is layered on
+ * only when the browser actually supports backdrop-filter (see @supports below). */
 .glass {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.5) 70%);
-  backdrop-filter: blur(28px) saturate(175%);
-  -webkit-backdrop-filter: blur(28px) saturate(175%);
+  background: linear-gradient(135deg, #1a2a4a, #0c1322 72%);
   box-shadow:
     0 12px 48px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(125, 170, 255, 0.18);
 }
 .glass-strong {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.26), rgba(11, 17, 33, 0.62) 70%);
-  backdrop-filter: blur(36px) saturate(190%);
-  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  background: linear-gradient(135deg, #1d3055, #0a1120 72%);
   box-shadow:
     0 24px 70px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(125, 170, 255, 0.22);
+}
+
+/* Frosted, translucent glass only when the browser can blur the backdrop. The
+ * fills stay fairly opaque so the panels remain legible even if the GPU
+ * under-renders the blur. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.24), rgba(15, 23, 42, 0.62) 70%);
+    backdrop-filter: blur(28px) saturate(175%);
+    -webkit-backdrop-filter: blur(28px) saturate(175%);
+  }
+  .glass-strong {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(11, 17, 33, 0.72) 70%);
+    backdrop-filter: blur(36px) saturate(190%);
+    -webkit-backdrop-filter: blur(36px) saturate(190%);
+  }
 }
 .neon-text {
   text-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
