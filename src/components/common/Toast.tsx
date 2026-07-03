@@ -25,8 +25,11 @@ export function Toast({ message, onDismiss, durationMs = 4200 }: ToastProps): Re
   if (message === null) return null
 
   return (
-    <div className="animate-fade-in pointer-events-none absolute top-[88px] left-1/2 z-[800] w-full max-w-[92vw] -translate-x-1/2 px-3 sm:max-w-md lg:top-6">
-      <div className="glass-strong flex items-center gap-2.5 rounded-2xl px-4 py-2.5 text-[13px] leading-snug text-slate-100 shadow-2xl backdrop-blur-2xl sm:rounded-full sm:text-sm">
+    // The wrapper must stay free of transform/opacity/animation: any of those on
+    // an ancestor isolates the backdrop root and kills the child's backdrop-filter
+    // (all browsers). So we only center here, and animate the glass element itself.
+    <div className="pointer-events-none absolute inset-x-0 top-[88px] z-[800] flex justify-center px-3 lg:top-6">
+      <div className="animate-fade-in glass-strong flex w-full max-w-[92vw] items-center gap-2.5 rounded-2xl px-4 py-2.5 text-[13px] leading-snug text-slate-100 shadow-2xl sm:max-w-md sm:rounded-full sm:text-sm">
         <IconGlobe className="h-4 w-4 shrink-0 text-sky-300" />
         <span>{message}</span>
       </div>

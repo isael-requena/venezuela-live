@@ -118,8 +118,8 @@ export function NewsFlyout({ item, regionName, onClose }: NewsFlyoutProps): Reac
   }
 
   return (
-    <div className="animate-fade-in pointer-events-none absolute top-[172px] left-1/2 z-[600] flex w-full max-w-[19rem] -translate-x-1/2 justify-center px-3 sm:max-w-sm sm:px-0 lg:top-auto lg:bottom-5">
-      <article className="glass-strong pointer-events-auto relative w-full overflow-hidden rounded-2xl shadow-2xl">
+    <div className="pointer-events-none absolute inset-x-0 top-[172px] z-[600] flex justify-center px-3 lg:top-auto lg:bottom-5">
+      <article className="animate-fade-in glass-strong pointer-events-auto relative w-full max-w-[19rem] overflow-hidden rounded-2xl shadow-2xl sm:max-w-sm">
         <button
           type="button"
           onClick={onClose}

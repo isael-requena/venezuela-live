@@ -291,31 +291,31 @@ function MapControls({ satellite, onToggleSatellite }: MapControlsProps): ReactN
     'glass-strong flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform hover:scale-110'
 
   return (
-    <div
-      className="absolute bottom-[calc(50%+6px)] left-1/2 z-[400] flex -translate-x-1/2 gap-2 lg:bottom-5"
-      onMouseDown={stop}
-      onDoubleClick={stop}
-    >
-      {showLocate && (
-        <button type="button" aria-label="Mi ubicación" onClick={locate} className={btn}>
-          <IconLocate className="h-5 w-5" />
+    // Outer wrapper centers WITHOUT a transform so the buttons' backdrop-filter
+    // (glass) keeps working on Safari/iOS (transformed ancestors disable it).
+    <div className="pointer-events-none absolute inset-x-0 bottom-[calc(50%+6px)] z-[400] flex justify-center lg:bottom-5">
+      <div className="pointer-events-auto flex gap-2" onMouseDown={stop} onDoubleClick={stop}>
+        {showLocate && (
+          <button type="button" aria-label="Mi ubicación" onClick={locate} className={btn}>
+            <IconLocate className="h-5 w-5" />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label={satellite ? 'Mapa normal' : 'Mapa satelital'}
+          title={satellite ? 'Mapa normal' : 'Mapa satelital'}
+          onClick={onToggleSatellite}
+          className={`${btn} ${satellite ? 'text-sky-300' : ''}`}
+        >
+          <IconLayers className="h-5 w-5" />
         </button>
-      )}
-      <button
-        type="button"
-        aria-label={satellite ? 'Mapa normal' : 'Mapa satelital'}
-        title={satellite ? 'Mapa normal' : 'Mapa satelital'}
-        onClick={onToggleSatellite}
-        className={`${btn} ${satellite ? 'text-sky-300' : ''}`}
-      >
-        <IconLayers className="h-5 w-5" />
-      </button>
-      <button type="button" aria-label="Acercar" onClick={() => map.zoomIn()} className={btn}>
-        <IconPlus className="h-5 w-5" />
-      </button>
-      <button type="button" aria-label="Alejar" onClick={() => map.zoomOut()} className={btn}>
-        <IconMinus className="h-5 w-5" />
-      </button>
+        <button type="button" aria-label="Acercar" onClick={() => map.zoomIn()} className={btn}>
+          <IconPlus className="h-5 w-5" />
+        </button>
+        <button type="button" aria-label="Alejar" onClick={() => map.zoomOut()} className={btn}>
+          <IconMinus className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   )
 }

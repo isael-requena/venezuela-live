@@ -204,14 +204,15 @@ body {
   background: transparent;
 }
 
+/* Opacity-only (no transform): Safari/iOS disables a child's backdrop-filter
+ * when any ancestor is transformed. Toast/flyout wrappers use this, so we must
+ * not leave a residual `transform` on them. */
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .animate-fade-in {
